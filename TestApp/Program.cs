@@ -1,11 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
-
-using OverlayTK;
 
 namespace TestApp
 {
@@ -27,7 +22,9 @@ namespace TestApp
             var result = await worker.Fetch(new JObject() {
                 { "resource", "https://example.org" },
                 { "options", new JObject() {
-
+                    { "headers", new JObject() {
+                        { "User-Agent", "OverlayTK-TestApp/1.0" }
+                    } }
                 } }
             });
             Console.WriteLine(result.ToString());

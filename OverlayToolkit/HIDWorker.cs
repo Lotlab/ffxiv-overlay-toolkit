@@ -9,12 +9,13 @@ using System.Linq;
 
 namespace OverlayTK
 {
-    public class HIDWorker
+    public class HIDWorker : IWorker
     {
         #region HidSharp Wrapper
         DeviceList deviceList => DeviceList.Local;
 
         Dictionary<string, HIDDeviceInfo> cachedDevice { get; } = new Dictionary<string, HIDDeviceInfo>();
+
 
         public event Action<HIDDeviceInfo, bool> DeviceChanged;
 
@@ -162,6 +163,8 @@ namespace OverlayTK
         }
         #endregion
         #region Overlay Handler
+        public string Name => "otk::hid";
+
         public event Action<JObject> RawEvent;
 
         private void onRecvData(HIDDeviceInfo arg1, byte[] arg2)
@@ -187,7 +190,15 @@ namespace OverlayTK
             }));
         }
 
-        public JToken Request(JObject obj)
+        public void Init(IEventSource es)
+        {
+            es.RegisterEventType("otk::hid::inputreport");
+            es.RegisterEventType("otk::hid::devicechanged");
+
+            RawEvent += es.DispatchEvent;
+        }
+
+        public JToken Do(JObject obj)
         {
             var action = obj.GetValue("type");
             if (action == null)

@@ -6,32 +6,32 @@ using System.Threading.Tasks;
 
 namespace OverlayTK
 {
-    public class FetchWorker
+    public static class JsonHelper
     {
-        static JToken Error(string message)
+        public static JToken Error(string message)
         {
             return JObject.FromObject(new
             {
                 Error = message
             });
         }
+    }
+
+    public class FetchWorker : IWorker
+    {
+        public string Name => "otk::fetch";
 
         public async Task<JToken> Fetch(JObject req)
         {
-            if (!req.TryGetValue("resource", out var resource))
-                return Error("Missing resource field");
-
-            if (resource.Type != JTokenType.String)
-                return Error("Invalid resource field type, must be string");
+            var request = req.ToObject<FetchRequest>();
+            if (string.IsNullOrEmpty(request.resource))
+                return JsonHelper.Error("Missing resource field");
 
             var msg = new HttpRequestMessage();
-            msg.RequestUri = new Uri(resource.ToString());
+            msg.RequestUri = new Uri(request.resource);
 
-            if (req.TryGetValue("options", out var options))
-            {
-                var reqOptions = new RequestInit(options);
-                reqOptions.ApplyToRequest(msg);
-            }
+            if (request.options != null)
+                request.options.Value.ApplyToRequest(msg);
 
             var httpClient = new HttpClient();
             var resp = await httpClient.SendAsync(msg);
@@ -44,70 +44,99 @@ namespace OverlayTK
             foreach (var header in msg.Headers)
                 headersObj[header.Key] = JToken.FromObject(header.Value);
 
-            return JObject.FromObject(new { 
-                headers = headersObj,
-                ok = msg.IsSuccessStatusCode,
-                status = msg.StatusCode,
-                statusText = msg.StatusCode.ToString(),
-                type = "basic",
-                url = msg.RequestMessage.RequestUri.ToString(),
-                body = await msg.Content.ReadAsStringAsync()
-            });
+            return JObject.FromObject(new FetchResponse(msg, await msg.Content.ReadAsStringAsync()));
         }
-        class RequestInit
+
+        public JToken Do(JObject token)
         {
-            string body { get; } = "";
+            var req = Fetch(token);
+            req.Wait(3000);
 
-            (string, string)[] headers { get; } = Array.Empty<(string, string)>();
+            if (req.Exception != null)
+                return JObject.FromObject(req.Exception);
 
-            string method { get; } = "GET";
+            return req.Result;
+        }
 
-            string referrer { get; } = "";
+        public void Init(IEventSource es)
+        {
+            es.RegisterEventHandler("Fetch", Do);
+        }
 
-            public RequestInit()
-            {
-            }
+        class FetchRequest
+        {
+            public string resource;
+            public RequestInit? options;
+        }
 
-            public RequestInit(JToken token)
-            {
-                body = token["body"]?.ToObject<string>();
-                method = token["method"]?.ToObject<string>();
-                if (string.IsNullOrEmpty(method))
-                    method = "GET";
+        struct RequestInit
+        {
+            public string body;
 
-                referrer = token["referrer"]?.ToObject<string>();
+            public Dictionary<string, string> headers;
 
-                List<(string, string)> headers = new List<(string, string)>();
+            public string method;
 
-                JObject headersObj = token["headers"] as JObject;
-                if (headersObj != null)
-                    foreach (var item in headersObj)
-                        headers.Add((item.Key, item.Value.ToString()));
-
-                this.headers = headers.ToArray();
-            }
+            public string referrer;
 
             public void ApplyToRequest(HttpRequestMessage req)
             {
+                if (string.IsNullOrEmpty(method))
+                    method = "GET";
+
+                req.Method = new HttpMethod(method);
+
                 if (body != null)
                     req.Content = new StringContent(body);
                 else if (method != "HEAD" && method != "GET")
                     req.Content = new ByteArrayContent(Array.Empty<byte>());
 
-                req.Method = new HttpMethod(method);
-                if (referrer != null)
+                if (!string.IsNullOrEmpty(referrer))
                     req.Headers.Referrer = new Uri(referrer);
 
-                foreach (var (name, value) in headers)
+                if (headers != null)
                 {
-                    if (name == "Content-Type")
+                    foreach (var item in headers)
                     {
-                        req.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(value);
-                        continue;
-                    }
+                        if (item.Key == "Content-Type")
+                        {
+                            req.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(item.Value);
+                            continue;
+                        }
 
-                    req.Headers.Add(name, value);
+                        req.Headers.Add(item.Key, item.Value);
+                    }
                 }
+            }
+        }
+    
+        class FetchResponse
+        {
+            public Dictionary<string, string> headers;
+            public bool ok;
+            public int status;
+            public string statusText;
+            public string type;
+            public string url;
+            public string body;
+
+            public FetchResponse(HttpResponseMessage msg, string body)
+            {
+                headers = new Dictionary<string, string>();
+                foreach (var item in msg.Headers)
+                {
+                    foreach (var value in item.Value)
+                    {
+                        headers.Add(item.Key, value);
+                    }
+                }
+
+                ok = msg.IsSuccessStatusCode;
+                status = (int)msg.StatusCode;
+                statusText = msg.StatusCode.ToString();
+                type = "basic";
+                url = msg.RequestMessage.RequestUri.ToString();
+                this.body = body;
             }
         }
     }

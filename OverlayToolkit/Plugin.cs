@@ -1,16 +1,10 @@
 ﻿using Advanced_Combat_Tracker;
 using Lotlab.PluginCommon.FFXIV;
-using Lotlab.PluginCommon.FFXIV.Parser;
 using Lotlab.PluginCommon.Overlay;
 using Newtonsoft.Json.Linq;
 using RainbowMage.OverlayPlugin;
 using System;
-using System.Collections.Generic;
-using System.Net.Http;
-using System.Runtime.InteropServices;
-using System.Security.Cryptography;
 using System.Windows.Forms;
-using System.Xml.Linq;
 
 namespace OverlayTK
 {
@@ -19,7 +13,7 @@ namespace OverlayTK
         /// <summary>
         /// FFXIV 解析插件的引用
         /// </summary>
-        ACTPluginProxy FFXIV { get; set; } = null;
+        public ACTPluginProxy FFXIV { get; set; } = null;
 
         /// <summary>
         /// 状态标签的引用
@@ -83,33 +77,35 @@ namespace OverlayTK
         }
     }
 
-    public class OverlayToolkitES : EventSourceBase
+    public class OverlayToolkitES : EventSourceBase, IEventSource
     {
         OverlayToolkit Plugin { get; }
 
-        HIDWorker HID { get; }
+        IWorker[] Workers { get; }
 
         public OverlayToolkitES(TinyIoCContainer c, OverlayToolkit plugin) : base(c)
         {
             Plugin = plugin;
 
-            HID = new HIDWorker();
-            HID.RawEvent += (obj) => DispatchEvent(obj);
-
             // 设置事件源名称，必须是唯一的
             Name = "OverlayToolkitES";
 
-            RegisterEventTypes(new List<string>()
+            Workers = new IWorker[]
             {
-                "otk::hid::inputreport",
-                "otk::hid::devicechanged",
-            });
-
+                new GameVersionInfo(plugin.FFXIV),
+                new FetchWorker(),
+                new HIDWorker(),
+                new PacketWorker(plugin.FFXIV),
+            };
 
             // 注册事件接收器
-            RegisterEventHandler("Fetch", fetch);
-            RegisterEventHandler("otk::fetch", fetch);
-            RegisterEventHandler("otk::hid", hid);
+            foreach (var worker in Workers)
+            {
+                worker.Init(this);
+
+                if (!string.IsNullOrEmpty(worker.Name))
+                    RegisterEventHandler(worker.Name, worker.Do);
+            }
         }
 
         ~OverlayToolkitES()
@@ -129,20 +125,24 @@ namespace OverlayTK
         {
         }
 
-        JToken fetch(JObject token)
+        void IEventSource.RegisterEventType(string type)
         {
-            var req = new FetchWorker().Fetch(token);
-            req.Wait(3000);
-
-            if (req.Exception != null)
-                return JObject.FromObject(req.Exception);
-
-            return req.Result;
+            RegisterEventType(type);
         }
 
-        JToken hid(JObject token)
+        void IEventSource.DispatchEvent(JObject e)
         {
-            return HID.Request(token);
+            DispatchEvent(e);
+        }
+
+        void IEventSource.RegisterEventHandler(string name, Func<JObject, JToken> handler)
+        {
+            RegisterEventHandler(name, handler);
+        }
+
+        bool IEventSource.HasSubscriber(string eventName)
+        {
+            return HasSubscriber(eventName);
         }
     }
 }

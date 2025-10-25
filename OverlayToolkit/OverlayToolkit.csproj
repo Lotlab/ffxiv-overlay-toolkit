@@ -81,7 +81,10 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="FetchWorker.cs" />
+    <Compile Include="GameVersionInfo.cs" />
     <Compile Include="HIDWorker.cs" />
+    <Compile Include="IWorker.cs" />
+    <Compile Include="PacketWorker.cs" />
     <Compile Include="Plugin.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
