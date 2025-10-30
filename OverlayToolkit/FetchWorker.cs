@@ -125,10 +125,7 @@ namespace OverlayTK
                 headers = new Dictionary<string, string>();
                 foreach (var item in msg.Headers)
                 {
-                    foreach (var value in item.Value)
-                    {
-                        headers.Add(item.Key, value);
-                    }
+                    headers.Add(item.Key, string.Join(", ", item.Value));
                 }
 
                 ok = msg.IsSuccessStatusCode;
