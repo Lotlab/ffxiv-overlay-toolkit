@@ -42,13 +42,16 @@ namespace OverlayTK
             if (header == null)
                 return;
 
+            var segment = header.Value.segmentHeader;
+            bool isSourceEqualTarget = segment.source_actor == segment.target_actor;
+
             foreach (var item in Listeners)
             {
                 bool matched = item.Value.Filters.Length == 0;
 
                 foreach (var filter in item.Value.Filters)
                 {
-                    if (filter.Match(isSent, message.Length, header.Value.type))
+                    if (filter.Match(isSent, message.Length, header.Value.type, isSourceEqualTarget))
                     {
                         matched = true;
                         break;
@@ -143,14 +146,18 @@ namespace OverlayTK
             public int? Length;
             [JsonProperty("opcode")]
             public int? Opcode;
+            [JsonProperty("self_actor")]
+            public bool? SelfActor;
 
-            public bool Match(bool isSent, int length, int opcode)
+            public bool Match(bool isSent, int length, int opcode, bool actorSelf)
             {
                 if (IsSent.HasValue && IsSent.Value != isSent)
                     return false;
                 if (Length.HasValue && Length.Value != length)
                     return false;
                 if (Opcode.HasValue && Opcode.Value != opcode)
+                    return false;
+                if (SelfActor.HasValue && SelfActor.Value != actorSelf)
                     return false;
 
                 return true;
