@@ -92,6 +92,7 @@ namespace OverlayTK
 
             Workers = new IWorker[]
             {
+                new PluginVersionInfo(),
                 new GameVersionInfo(plugin.FFXIV),
                 new FetchWorker(),
                 new HIDWorker(),

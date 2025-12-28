@@ -86,6 +86,7 @@
     <Compile Include="IWorker.cs" />
     <Compile Include="PacketWorker.cs" />
     <Compile Include="Plugin.cs" />
+    <Compile Include="PluginVersionInfo.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

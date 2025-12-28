@@ -59,19 +59,28 @@ namespace OverlayTK
                 }
 
                 if (matched)
-                    dispatchPacket(item.Key, isSent, connection, epoch, message, header.Value);
+                    dispatchPacket(item.Value, isSent, connection, epoch, message, header.Value);
             }
         }
 
-        void dispatchPacket(string listenerName, bool isSent, string connection, long epoch, byte[] message, IPCHeader header)
+        void dispatchPacket(EventListener listener, bool isSent, string connection, long epoch, byte[] message, IPCHeader header)
         {
             if (EventSource == null)
                 return;
 
+            // Old Behavior: using global type
+            var eventType = "otk::packet";
+
+            // New Behavior: using custom event name if provided
+            if (!string.IsNullOrEmpty(listener.EventName))
+            {
+                eventType = listener.EventName;
+            }
+
             EventSource.DispatchEvent(JObject.FromObject(new
             {
-                type = "otk::packet",
-                name = listenerName,
+                type = eventType,
+                name = listener.Name,
                 dir = isSent,
                 conn = connection,
                 epoch = epoch,
@@ -88,9 +97,15 @@ namespace OverlayTK
                 return JsonHelper.Error("missing 'name' field");
 
             Listeners[listener.Name] = listener;
+
+            // Register event type if provided
+            if (!string.IsNullOrEmpty(listener.EventName))
+                EventSource.RegisterEventType(listener.EventName);
+
             return new JObject()
             {
-                { "name", listener.Name }
+                { "name", listener.Name },
+                { "evt_name", listener.EventName }
             };
         }
 
@@ -134,6 +149,10 @@ namespace OverlayTK
         {
             [JsonProperty("name")]
             public string Name;
+
+            [JsonProperty("evt_name")]
+            public string EventName;
+            
             [JsonProperty("filters")]
             public Filter[] Filters;
         }
