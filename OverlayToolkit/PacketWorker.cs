@@ -96,11 +96,15 @@ namespace OverlayTK
             if (string.IsNullOrEmpty(listener.Name))
                 return JsonHelper.Error("missing 'name' field");
 
+            bool hasListeners = Listeners.ContainsKey(listener.Name);
             Listeners[listener.Name] = listener;
 
-            // Register event type if provided
-            if (!string.IsNullOrEmpty(listener.EventName))
+            // Register event type if provided.
+            // Only register if this is the first time subscribing with this name, or the old event handler would be overwritten.
+            if (!string.IsNullOrEmpty(listener.EventName) && !hasListeners)
+            {
                 EventSource.RegisterEventType(listener.EventName);
+            }
 
             return new JObject()
             {
